@@ -1,35 +1,52 @@
 # WebToEpub website
 
-This directory is the standalone website surface. It is intentionally separate from `plugin/`, so the existing Chrome/Firefox extension and its packaging process remain unchanged.
+This directory contains a standalone website surface. It is separate from `plugin/`, so the existing Chrome/Firefox extension and its packaging process remain unchanged.
 
-## Current status
+## Current implementation
 
-The first milestone adds a responsive, accessible landing page and URL-entry interaction. URL validation is client-side. **It does not yet fetch stories or generate EPUB files.** The website must not present a successful conversion until the shared engine is connected.
+- Responsive landing page and story URL form.
+- Browser-side URL validation and same-origin chapter-link discovery.
+- A chapter selection workspace and editable title, author, and filename.
+- A first browser-only conversion path that reuses the repository's existing `EpubMetaInfo`, `ChapterEpubItem`, `EpubItemSupplier`, and `EpubPacker` classes, plus the project's existing zip.js dependency.
+- A small compatibility helper for the subset of shared EPUB code used by this path.
 
-## Why the engine needs an adapter
+## Important limitations
 
-The extension's current runtime is not directly usable in an ordinary webpage:
+This is an initial generic web conversion path, **not yet full parity with the extension**:
 
-- `HttpClient.js` and other modules call extension APIs and rely on extension permissions.
-- `Download.js` uses `chrome.downloads` / `browser.downloads`; a website should instead expose the generated EPUB Blob through a normal browser download link.
-- A website cannot freely fetch every novel host. Cross-origin resource sharing (CORS), cookies, anti-bot checks, and site-specific request headers differ from extension behavior.
-- Some parsers use browser-only APIs such as declarative request rules. Those need an explicit web-compatible capability or a clearly reported unsupported status.
+- It does not yet load the hundreds of site-specific parser classes. Those classes depend on extension-era globals, preferences, request interception, cookie handling, parser UI, and other extension services. Reusing them safely requires a proper runtime adapter and parser capability audit.
+- Direct browser `fetch()` works only when the source site permits it through CORS. Sites requiring extension host permissions, custom headers, partitioned-cookie handling, login workarounds, or anti-bot flows will not work in this web path.
+- Chapter discovery currently lists same-origin links from the supplied page. It is a generic first pass and may include navigation or other non-chapter links. Review the selection before conversion.
+- This first web path does not yet package chapter images, use site-specific chapter ordering, or support every extension parser's custom metadata and content cleanup.
+- Do not add an unrestricted public URL proxy as a shortcut. Any future server-side fetcher must enforce HTTP(S), block private/local IP ranges (including after redirects and DNS resolution), limit response size and time, and apply abuse controls.
 
-## Planned integration
+The extension remains the recommended option for sites that rely on its elevated permissions or site-specific parser behavior.
 
-1. Extract runtime-independent parser, content-cleaning, metadata, and EPUB-packing logic into shared modules without changing extension behavior.
-2. Add a web runtime adapter for HTTP requests, preferences, progress/error reporting, and Blob downloads.
-3. Add a parser registry build that can be loaded by the website while preserving the extension's existing parser registration.
-4. Start with parsers that work with ordinary browser fetch and CORS-enabled sites; clearly report sites that need extension-only capabilities.
-5. If a server fetch service is later needed, restrict it to HTTP(S), block private/local network destinations and redirects into them, enforce response-size/time limits, and do not build an unrestricted public URL proxy.
-6. Add end-to-end tests for a supported public test page and EPUB validity before advertising website conversion as available.
+## Script loading
+
+The website loads the existing ZIP library from `node_modules`, then the web compatibility helper, then the existing EPUB classes. Keep this order when changing `web/index.html`.
 
 ## Local preview
 
-Serve this folder with any static HTTP server, for example:
+Install the repository dependencies at the repository root:
 
 ```sh
-npx http-server web
+npm install
 ```
 
-Then open the local address printed by the server. The page is static and does not require an install step.
+Then serve the repository root (not just the `web/` directory, because the website references the existing `plugin/` files and `node_modules/` ZIP library):
+
+```sh
+npx http-server . -p 8080
+```
+
+Open `http://localhost:8080/web/`.
+
+## Next integration milestones
+
+1. Create a formal web runtime contract for HTTP, preferences, cancellation, progress, errors, and file downloads.
+2. Audit site parsers and mark their capabilities (ordinary CORS fetch, extension-only permissions, cookies, custom headers, background requests).
+3. Port or adapt selected parsers incrementally without changing the extension runtime.
+4. Add image collection and EPUB image packaging to the web adapter.
+5. Add chapter-order heuristics, better generic discovery, metadata handling, and a regression test set.
+6. Only advertise support for sites that have passed real browser and EPUB validation.
