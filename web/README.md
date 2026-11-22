@@ -7,7 +7,8 @@ This directory contains a standalone website surface. It is separate from `plugi
 - Responsive landing page and story URL form.
 - Browser-side URL validation and same-origin chapter-link discovery.
 - A chapter selection workspace and editable title, author, and filename.
-- A first browser-only conversion path that reuses the repository's existing `EpubMetaInfo`, `ChapterEpubItem`, `EpubItemSupplier`, and `EpubPacker` classes, plus the project's existing zip.js dependency.
+- A website conversion path that reuses the repository's existing `EpubMetaInfo`, `ChapterEpubItem`, `EpubItemSupplier`, and `EpubPacker` classes, plus the project's existing zip.js dependency.
+- A small Node.js backend (`server.js`) that fetches AO3 work and series HTML for the website, avoiding browser CORS restrictions for those pages.
 - An initial Archive of Our Own (AO3) web adapter that ports the extension parser's chapter-navigation rules, work/series handling, story metadata, chapter content selector, and reader query flags.
 - A small compatibility helper for the subset of shared EPUB code used by this path.
 
@@ -39,13 +40,13 @@ Install the repository dependencies at the repository root:
 npm install
 ```
 
-Then serve the repository root (not just the `web/` directory, because the website references the existing `plugin/` files and `node_modules/` ZIP library):
+Then start the Node.js backend from the repository root (Node.js 18 or newer is required for built-in `fetch`):
 
 ```sh
-npx http-server . -p 8080
+node server.js
 ```
 
-Open `http://localhost:8080/web/`.
+Open `http://127.0.0.1:8000/web/`. Do not use `python -m http.server` or `http-server` for AO3 conversion; those static servers do not provide the `/api/ao3` endpoint. Keep the Node.js server running while using the website.
 
 ## Next integration milestones
 
