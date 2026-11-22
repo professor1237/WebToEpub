@@ -156,7 +156,7 @@ async function fetchChapter(chapter) {
     const content = parserContent ? activeParser.cleanContent(parserContent) : findReadableContent(doc);
     const wrapper = document.createElement("div");
     const heading = document.createElement("h1");
-    heading.textContent = chapter.title || doc.title || "Chapter";
+    heading.textContent = activeParser?.getChapterTitle(doc, chapter.title) || chapter.title || doc.title || "Chapter";
     wrapper.appendChild(heading);
     for (const node of [...content.childNodes]) {
         const clone = util.sanitizeNode(node);
@@ -192,7 +192,7 @@ async function createEpub() {
             const content = await fetchChapter(chapter);
             items.push(new ChapterEpubItem({
                 sourceUrl: chapter.url,
-                title: activeParser?.getChapterTitle(doc, chapter.title) || chapter.title,
+                title: chapter.title,
                 newArc: null
             }, content, index));
             chapterProgress.value = index + 1;
