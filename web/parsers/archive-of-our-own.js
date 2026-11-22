@@ -96,6 +96,10 @@ class ArchiveOfOurOwnWebParser {
         };
     }
 
+    static hasEmbeddedChapterTitle(doc) {
+        return !!doc.querySelector("h3.title");
+    }
+
     static getChapterTitle(doc, fallback) {
         return doc.querySelector("h3.title")?.textContent.trim() ||
             doc.querySelector("h2.heading")?.textContent.trim() ||
