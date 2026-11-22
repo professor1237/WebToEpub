@@ -87,7 +87,7 @@
       });
 
       await test("discovers works in a series in reading order", async () => {
-        const doc = parse('<html><body><ul class="series work"><li><h4 class="heading"><a href="/works/20">One-shot</a></h4></li><li><dd class="chapters"><a href="/works/21/chapters/50">2/2</a></dd></li></ul></body></html>', "https://archiveofourown.org/series/9");
+        const doc = parse('<html><body><ul class="series work"><li><h4 class="heading"><a href="/works/20">One-shot</a></h4></li><li><dl><dd class="chapters"><a href="/works/21/chapters/50">2/2</a></dd></dl></li></ul></body></html>', "https://archiveofourown.org/series/9");
         const chapters = await Parser.getChapterUrls(doc, "https://archiveofourown.org/series/9", async url => {
           assert(url === "https://archiveofourown.org/works/21/navigate", "wrong series work navigation URL");
           return parse('<html><body><ol class="chapter"><li><a href="/works/21/chapters/50">Part 1</a></li><li><a href="/works/21/chapters/51">Part 2</a></li></ol></body></html>', url);
@@ -99,7 +99,7 @@
       });
 
       await test("selects story content and removes AO3 navigation decoration", () => {
-        const doc = parse('<html><body><div id="chapters"><h3 class="landmark heading">Landmark</h3><div class="userstuff">Story text</div><div class="chapter navigation">Navigation</div></div></body></html>', "https://archiveofourown.org/works/12/chapters/34");
+        const doc = parse('<html><body><div id="chapters"><h3 class="landmark heading">Landmark</h3><div class="userstuff">Story text</div><div class="chapter"><div class="navigation">Navigation</div></div></div></body></html>', "https://archiveofourown.org/works/12/chapters/34");
         const content = Parser.cleanContent(Parser.getContent(doc));
         assert(content.textContent.includes("Story text"), "story text removed");
         assert(!content.textContent.includes("Landmark"), "landmark heading retained");
