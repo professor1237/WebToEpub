@@ -19,6 +19,9 @@ let sourceDocument = null;
 let sourceUrl = null;
 let activeParser = null;
 let storyMetadata = null;
+let collectedImages = [];
+let imageByUrl = new Map();
+let skippedImageCount = 0;
 
 function setStatus(message, isError = false) {
     status.textContent = message;
@@ -128,6 +131,9 @@ async function loadStory(url) {
     const candidates = activeParser
         ? await activeParser.getChapterUrls(doc, finalUrl.href, fetchDocument)
         : discoverChapters(doc, finalUrl);
+    if (candidates.length === 0 && activeParser) {
+        throw new Error("The supported parser could not find any chapters on this page.");
+    }
     if (candidates.length === 0) {
         const title = doc.title || "Story";
         discoveredChapters = [{url: finalUrl.href, title}];
@@ -144,6 +150,52 @@ async function loadStory(url) {
     workspace.scrollIntoView({behavior: "smooth", block: "start"});
 }
 
+async function prepareChapterImages(content, pageUrl) {
+    for (const img of [...content.querySelectorAll("img[src]")]) {
+        const rawSrc = img.getAttribute("src");
+        let imageUrl;
+        try {
+            imageUrl = new URL(rawSrc, pageUrl);
+        } catch {
+            img.removeAttribute("src");
+            skippedImageCount++;
+            continue;
+        }
+        if (!["http:", "https:"].includes(imageUrl.protocol)) {
+            img.removeAttribute("src");
+            skippedImageCount++;
+            continue;
+        }
+
+        let imageInfo = imageByUrl.get(imageUrl.href);
+        if (!imageInfo) {
+            try {
+                const response = await fetch(imageUrl.href, {credentials: "include", redirect: "follow"});
+                if (!response.ok) throw new Error("HTTP " + response.status);
+                const blob = await response.blob();
+                const mimeType = (blob.type || response.headers.get("content-type") || "").split(";")[0].toLowerCase();
+                if (!mimeType.startsWith("image/")) throw new Error("The response is not an image.");
+                imageInfo = new ImageInfo(imageUrl.href, collectedImages.length, imageUrl.href, null);
+                imageInfo.mediaType = mimeType;
+                imageInfo.arraybuffer = await blob.arrayBuffer();
+                collectedImages.push(imageInfo);
+                imageByUrl.set(imageUrl.href, imageInfo);
+            } catch (error) {
+                console.warn("Skipping EPUB image:", imageUrl.href, error);
+                img.removeAttribute("src");
+                if (!img.getAttribute("alt")) img.setAttribute("alt", "Image unavailable in EPUB");
+                skippedImageCount++;
+                continue;
+            }
+        }
+
+        img.setAttribute("src", imageInfo.getZipHref().replace(/^OEBPS\/Images\//, "../Images/"));
+        img.removeAttribute("srcset");
+        img.removeAttribute("sizes");
+        img.removeAttribute("loading");
+    }
+}
+
 async function fetchChapter(chapter) {
     const response = await fetch(chapter.url, {credentials: "include", redirect: "follow"});
     if (!response.ok) throw new Error("Could not fetch " + chapter.title + " (HTTP " + response.status + ").");
@@ -154,6 +206,7 @@ async function fetchChapter(chapter) {
     doc.head.prepend(base);
     const parserContent = activeParser?.getContent(doc);
     const content = parserContent ? activeParser.cleanContent(parserContent) : findReadableContent(doc);
+    await prepareChapterImages(content, response.url || chapter.url);
     const wrapper = document.createElement("div");
     const heading = document.createElement("h1");
     heading.textContent = activeParser?.getChapterTitle(doc, chapter.title) || chapter.title || doc.title || "Chapter";
@@ -168,7 +221,8 @@ async function fetchChapter(chapter) {
 function makeSupplier(items) {
     const imageCollector = {
         coverImageInfo: null,
-        imagesToPackInEpub: () => []
+        userPreferences: null,
+        imagesToPackInEpub: () => collectedImages
     };
     return new EpubItemSupplier(null, items, imageCollector);
 }
@@ -185,6 +239,9 @@ async function createEpub() {
     chapterProgress.max = selected.length;
     chapterProgress.value = 0;
     const items = [];
+    collectedImages = [];
+    imageByUrl = new Map();
+    skippedImageCount = 0;
     try {
         for (let index = 0; index < selected.length; index++) {
             const chapter = selected[index];
@@ -208,6 +265,7 @@ async function createEpub() {
         meta.fileName = util.safeForFileName(fileName.value || meta.title, 100);
         const packer = new EpubPacker(meta, EpubPacker.EPUB_VERSION_2);
         setConversionStatus("Building your EPUB with the existing WebToEpub packer…");
+        if (skippedImageCount > 0) console.warn(skippedImageCount + " image(s) could not be included because browser access was blocked or the response was unsupported.");
         const blob = await packer.assemble(makeSupplier(items));
         const downloadUrl = URL.createObjectURL(blob);
         const link = document.createElement("a");
