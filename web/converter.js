@@ -22,6 +22,9 @@ let storyMetadata = null;
 let collectedImages = [];
 let imageByUrl = new Map();
 let skippedImageCount = 0;
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+const MAX_TOTAL_IMAGE_BYTES = 100 * 1024 * 1024;
+let totalImageBytes = 0;
 
 function setStatus(message, isError = false) {
     status.textContent = message;
@@ -172,12 +175,17 @@ async function prepareChapterImages(content, pageUrl) {
             try {
                 const response = await fetch(imageUrl.href, {credentials: "include", redirect: "follow"});
                 if (!response.ok) throw new Error("HTTP " + response.status);
+                const declaredLength = Number(response.headers.get("content-length") || 0);
+                if (declaredLength > MAX_IMAGE_BYTES) throw new Error("Image exceeds the 20 MB per-image limit.");
                 const blob = await response.blob();
                 const mimeType = (blob.type || response.headers.get("content-type") || "").split(";")[0].toLowerCase();
-                if (!mimeType.startsWith("image/")) throw new Error("The response is not an image.");
+                if (!["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mimeType)) throw new Error("Unsupported image format: " + (mimeType || "unknown"));
+                if (blob.size > MAX_IMAGE_BYTES) throw new Error("Image exceeds the 20 MB per-image limit.");
+                if (totalImageBytes + blob.size > MAX_TOTAL_IMAGE_BYTES) throw new Error("The EPUB image collection exceeds the 100 MB limit.");
                 imageInfo = new ImageInfo(imageUrl.href, collectedImages.length, imageUrl.href, null);
                 imageInfo.mediaType = mimeType;
                 imageInfo.arraybuffer = await blob.arrayBuffer();
+                totalImageBytes += blob.size;
                 collectedImages.push(imageInfo);
                 imageByUrl.set(imageUrl.href, imageInfo);
             } catch (error) {
@@ -205,6 +213,7 @@ async function fetchChapter(chapter) {
     base.href = response.url || chapter.url;
     doc.head.prepend(base);
     const parserContent = activeParser?.getContent(doc);
+    if (activeParser && !parserContent) throw new Error("The AO3 chapter content area was not found. The page layout may have changed.");
     const content = parserContent ? activeParser.cleanContent(parserContent) : findReadableContent(doc);
     await prepareChapterImages(content, response.url || chapter.url);
     const wrapper = document.createElement("div");
@@ -242,6 +251,7 @@ async function createEpub() {
     collectedImages = [];
     imageByUrl = new Map();
     skippedImageCount = 0;
+    totalImageBytes = 0;
     try {
         for (let index = 0; index < selected.length; index++) {
             const chapter = selected[index];
