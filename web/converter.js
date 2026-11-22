@@ -17,6 +17,8 @@ const chapterProgress = document.getElementById("chapter-progress");
 let discoveredChapters = [];
 let sourceDocument = null;
 let sourceUrl = null;
+let activeParser = null;
+let storyMetadata = null;
 
 function setStatus(message, isError = false) {
     status.textContent = message;
@@ -96,6 +98,13 @@ function renderChapterChoices(chapters) {
     chapterCount.textContent = chapters.length + (chapters.length === 1 ? " chapter found" : " chapters found");
 }
 
+async function fetchDocument(url) {
+    const response = await fetch(url, {credentials: "include", redirect: "follow"});
+    if (!response.ok) throw new Error("The website returned HTTP " + response.status + ".");
+    const html = await response.text();
+    return new DOMParser().parseFromString(html, "text/html");
+}
+
 async function loadStory(url) {
     setStatus("Checking whether this website allows browser access…");
     workspace.hidden = true;
@@ -104,6 +113,9 @@ async function loadStory(url) {
     const html = await response.text();
     const doc = new DOMParser().parseFromString(html, "text/html");
     const finalUrl = new URL(response.url || url.href);
+    activeParser = Object.values(window.WebToEpubParsers || {})
+        .find(parser => parser.supports(finalUrl)) || null;
+    storyMetadata = activeParser?.getMetadata(doc) || null;
     let base = doc.querySelector("base");
     if (!base) {
         base = doc.createElement("base");
@@ -113,7 +125,9 @@ async function loadStory(url) {
 
     sourceDocument = doc;
     sourceUrl = finalUrl;
-    const candidates = discoverChapters(doc, finalUrl);
+    const candidates = activeParser
+        ? await activeParser.getChapterUrls(doc, finalUrl.href, fetchDocument)
+        : discoverChapters(doc, finalUrl);
     if (candidates.length === 0) {
         const title = doc.title || "Story";
         discoveredChapters = [{url: finalUrl.href, title}];
@@ -121,8 +135,8 @@ async function loadStory(url) {
         discoveredChapters = candidates;
     }
 
-    bookTitle.value = doc.querySelector("meta[property='og:title']")?.content || doc.title || "WebToEpub book";
-    bookAuthor.value = doc.querySelector("meta[name='author']")?.content || doc.querySelector("[rel='author']")?.textContent?.trim() || "Unknown";
+    bookTitle.value = storyMetadata?.title || doc.querySelector("meta[property='og:title']")?.content || doc.title || "WebToEpub book";
+    bookAuthor.value = storyMetadata?.author || doc.querySelector("meta[name='author']")?.content || doc.querySelector("[rel='author']")?.textContent?.trim() || "Unknown";
     fileName.value = util.safeForFileName(bookTitle.value, 100);
     renderChapterChoices(discoveredChapters);
     workspace.hidden = false;
@@ -138,7 +152,8 @@ async function fetchChapter(chapter) {
     const base = doc.createElement("base");
     base.href = response.url || chapter.url;
     doc.head.prepend(base);
-    const content = findReadableContent(doc);
+    const parserContent = activeParser?.getContent(doc);
+    const content = parserContent ? activeParser.cleanContent(parserContent) : findReadableContent(doc);
     const wrapper = document.createElement("div");
     const heading = document.createElement("h1");
     heading.textContent = chapter.title || doc.title || "Chapter";
@@ -177,7 +192,7 @@ async function createEpub() {
             const content = await fetchChapter(chapter);
             items.push(new ChapterEpubItem({
                 sourceUrl: chapter.url,
-                title: chapter.title,
+                title: activeParser?.getChapterTitle(doc, chapter.title) || chapter.title,
                 newArc: null
             }, content, index));
             chapterProgress.value = index + 1;
@@ -187,7 +202,9 @@ async function createEpub() {
         meta.uuid = sourceUrl.href;
         meta.title = bookTitle.value.trim() || "WebToEpub book";
         meta.author = bookAuthor.value.trim() || "Unknown";
-        meta.language = sourceDocument.documentElement.lang || "en";
+        meta.language = storyMetadata?.language || sourceDocument.documentElement.lang || "en";
+        if (storyMetadata?.description) meta.description = storyMetadata.description;
+        if (storyMetadata?.subject) meta.subject = storyMetadata.subject;
         meta.fileName = util.safeForFileName(fileName.value || meta.title, 100);
         const packer = new EpubPacker(meta, EpubPacker.EPUB_VERSION_2);
         setConversionStatus("Building your EPUB with the existing WebToEpub packer…");
