@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10121b">
+  <meta name="description" content="Turn supported web novels and stories into EPUB books for offline reading.">
+  <title>WebToEpub — Your stories, ready to read</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <div class="site-shell">
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="WebToEpub home">
+        <span class="brand-mark" aria-hidden="true">W</span>
+        <span>WebToEpub</span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="#how-it-works">How it works</a>
+        <a href="#features">Features</a>
+        <a class="nav-quiet" href="https://github.com/professor1237/WebToEpub">GitHub <span aria-hidden="true">↗</span></a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="eyebrow"><span class="pulse"></span> THE OPEN-SOURCE WEB NOVEL TOOLKIT</div>
+        <h1>Your next chapter.<br><span>On your terms.</span></h1>
+        <p class="hero-copy">Bring your favourite web stories together and prepare them for comfortable, offline reading.</p>
+
+        <form class="url-card" id="url-form" novalidate>
+          <label for="story-url">Start with a story URL</label>
+          <div class="url-row">
+            <span class="url-icon" aria-hidden="true">↗</span>
+            <input id="story-url" name="story-url" type="url" inputmode="url" autocomplete="url" placeholder="https://example.com/your-story" required>
+            <button type="submit">Get started <span aria-hidden="true">→</span></button>
+          </div>
+          <p class="form-hint">Paste the main page or table-of-contents link for a story.</p>
+          <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
+        </form>
+
+        <div class="trust-row">
+          <span><i>✓</i> Open source</span>
+          <span><i>✓</i> EPUB focused</span>
+          <span><i>✓</i> Extension stays available</span>
+        </div>
+        <div class="hero-orbit orbit-one"></div>
+        <div class="hero-orbit orbit-two"></div>
+        <div class="book-art" aria-hidden="true">
+          <div class="book book-back"></div>
+          <div class="book book-front"><div class="book-line"></div><div class="book-title">A WORLD<br>OF STORIES</div><div class="book-leaf">✳</div></div>
+          <div class="spark spark-a">✦</div><div class="spark spark-b">✧</div>
+        </div>
+      </section>
+
+      <section class="section intro" id="how-it-works">
+        <div class="section-kicker">A simpler reading workflow</div>
+        <h2>From scattered chapters<br>to one beautiful book.</h2>
+        <div class="steps">
+          <article class="step-card"><span class="step-number">01</span><div class="step-icon">⌁</div><h3>Choose a story</h3><p>Start with a supported story page or table of contents.</p></article>
+          <article class="step-card"><span class="step-number">02</span><div class="step-icon">☷</div><h3>Arrange chapters</h3><p>Review the chapter list and choose what belongs in your book.</p></article>
+          <article class="step-card"><span class="step-number">03</span><div class="step-icon">⇩</div><h3>Make your EPUB</h3><p>Prepare a portable book for your favourite reading app.</p></article>
+        </div>
+      </section>
+
+      <section class="feature-band" id="features">
+        <div>
+          <div class="section-kicker">Built on WebToEpub</div>
+          <h2>The familiar toolkit.<br>A new way to use it.</h2>
+          <p>The browser extension remains part of the project. The website is being developed alongside it, with the goal of sharing the mature parser and EPUB code instead of starting over.</p>
+          <a class="text-link" href="https://github.com/professor1237/WebToEpub">Explore the source code <span aria-hidden="true">↗</span></a>
+        </div>
+        <div class="feature-list">
+          <div><span>✦</span><section><h3>Many site parsers</h3><p>Build on the project's existing collection of community-maintained parsers.</p></section></div>
+          <div><span>▤</span><section><h3>Book details</h3><p>Keep story metadata, chapter titles, and cover information together.</p></section></div>
+          <div><span>◈</span><section><h3>Open source foundation</h3><p>Develop the web experience in the same repository without replacing the extension.</p></section></div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <a class="brand footer-brand" href="./"><span class="brand-mark">W</span><span>WebToEpub</span></a>
+      <p>Made for stories worth keeping.</p>
+      <a href="https://github.com/professor1237/WebToEpub">View project on GitHub ↗</a>
+    </footer>
+  </div>
+</body>
+</html>
