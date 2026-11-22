@@ -68,6 +68,12 @@
         assert(meta.subject.includes("Fantasy") && meta.subject.includes("Adventure"), "tags missing");
       });
 
+      await test("keeps an embedded chapter title without adding a duplicate", () => {
+        const doc = parse('<html><body><div id="chapters"><h3 class="title">Chapter One</h3><p>Story text</p></div></body></html>', "https://archiveofourown.org/works/12/chapters/34");
+        assert(Parser.hasEmbeddedChapterTitle(doc), "embedded chapter title was not detected");
+        assert(Parser.getChapterTitle(doc, "fallback") === "Chapter One", "embedded chapter title mismatch");
+      });
+
       await test("handles a single-chapter work", async () => {
         const doc = parse('<html><head><title>One-shot</title></head><body><h2 class="heading">One-shot</h2><div id="chapters"><div class="userstuff">Text</div></div></body></html>', "https://archiveofourown.org/works/12");
         const chapters = await Parser.getChapterUrls(doc, "https://archiveofourown.org/works/12", async () => { throw new Error("unexpected navigation fetch"); });
@@ -104,6 +110,8 @@
         assert(content.textContent.includes("Story text"), "story text removed");
         assert(!content.textContent.includes("Landmark"), "landmark heading retained");
         assert(!content.textContent.includes("Navigation"), "navigation retained");
+        const titled = parse('<html><body><div id="chapters"><h3 class="title">Chapter title</h3></div></body></html>', "https://archiveofourown.org/works/12/chapters/34");
+        assert(Parser.cleanContent(Parser.getContent(titled)).textContent.includes("Chapter title"), "actual chapter title was removed");
       });
 
       document.getElementById("summary").textContent = passed + " passed, " + failed + " failed.";
