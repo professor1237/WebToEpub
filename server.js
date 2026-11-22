@@ -101,9 +101,6 @@ async function fetchAo3Page(initialUrl) {
                     "accept": "text/html,application/xhtml+xml"
                 }
             });
-        } finally {
-            clearTimeout(timeout);
-        }
 
         if ([301, 302, 303, 307, 308].includes(response.status)) {
             const location = response.headers.get("location");
@@ -144,6 +141,9 @@ async function fetchAo3Page(initialUrl) {
         }
         const html = Buffer.concat(chunks.map(chunk => Buffer.from(chunk))).toString("utf8");
         return {url: currentUrl.href, html};
+        } finally {
+            clearTimeout(timeout);
+        }
     }
     throw new Error("AO3 redirect limit exceeded.");
 }
