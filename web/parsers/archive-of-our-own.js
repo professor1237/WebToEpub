@@ -28,8 +28,14 @@ class ArchiveOfOurOwnWebParser {
 
     static async fetchChapterUrls(url, fetchDocument) {
         const doc = await fetchDocument(url);
+        const seen = new Set();
         return [...doc.querySelectorAll("ol.chapter a[href]")]
-            .map(link => this.linkToChapter(link, url));
+            .map(link => this.linkToChapter(link, url))
+            .filter(chapter => {
+                if (seen.has(chapter.url)) return false;
+                seen.add(chapter.url);
+                return true;
+            });
     }
 
     static async getChapterUrls(doc, pageUrl, fetchDocument) {
