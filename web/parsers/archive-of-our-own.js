@@ -9,8 +9,7 @@ window.WebToEpubParsers = window.WebToEpubParsers || {};
 
 class ArchiveOfOurOwnWebParser {
     static supports(url) {
-        return /(^|\\.)archiveofourown\\.(org|com|net|gay)$/.test(url.hostname) ||
-            url.hostname === "ao3.org";
+        return url.hostname === "archiveofourown.org" || url.hostname === "www.archiveofourown.org" || url.hostname === "ao3.org";
     }
 
     static withReaderFlags(value) {
@@ -23,7 +22,7 @@ class ArchiveOfOurOwnWebParser {
     static linkToChapter(link, baseUrl) {
         return {
             url: this.withReaderFlags(new URL(link.getAttribute("href"), baseUrl).href),
-            title: (link.textContent || "").replace(/\\s+/g, " ").trim() || "Untitled chapter"
+            title: (link.textContent || "").trim() || "Untitled chapter"
         };
     }
 
@@ -63,11 +62,13 @@ class ArchiveOfOurOwnWebParser {
 
         let navigationUrl = doc.querySelector("ul#chapter_index a[href]")?.href;
         if (!navigationUrl) {
-            const match = new URL(pageUrl).pathname.match(/\\/works\\/(\\d+)(?:\\/|$)/);
-            if (!match) {
+            const pathParts = new URL(pageUrl).pathname.split("/");
+            const workIndex = pathParts.indexOf("works");
+            const workId = pathParts[workIndex + 1];
+            if (workIndex < 0 || !/^\d+$/.test(workId || "")) {
                 return [{url: this.withReaderFlags(pageUrl), title: doc.title || "Story"}];
             }
-            navigationUrl = new URL("/works/" + match[1] + "/navigate", pageUrl).href;
+            navigationUrl = new URL("/works/" + workId + "/navigate", pageUrl).href;
         }
         return this.fetchChapterUrls(navigationUrl, fetchDocument);
     }
