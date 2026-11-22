@@ -25,6 +25,15 @@ const util = {
     extensionVersion: () => "web",
     styleSheetFileName: () => "OEBPS/Styles/stylesheet.css",
     clearIfDataUri: (value) => (value && value.startsWith("data:")) ? "" : value,
+    getDefaultExtensionByMime: (mimeType) => ({
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/gif": "gif",
+        "image/webp": "webp",
+        "image/svg+xml": "svg",
+        "image/avif": "avif",
+        "image/bmp": "bmp"
+    })[String(mimeType || "").split(";")[0].toLowerCase()] || "",
     zeroPad: (value) => ("000" + value).slice(-4),
     isNullOrEmpty: (value) => value == null || value === "",
     isHeaderTag: (node) => node?.nodeType === Node.ELEMENT_NODE && /^H[1-6]$/.test(node.tagName),
