@@ -27,6 +27,10 @@ The extension remains the recommended option for sites that rely on its elevated
 
 The website loads the existing ZIP library from `node_modules`, then the web compatibility helper, then the existing EPUB classes. Keep this order when changing `web/index.html`.
 
+## AO3 parser regression tests
+
+After installing dependencies and serving the repository root, open `http://localhost:8080/web/tests/archive-of-our-own.test.html`. These local-fixture tests cover host matching, reader flags, metadata, single works, multi-chapter navigation, series ordering, duplicate links, and content cleanup. They do not prove that AO3 permits live cross-origin requests from a deployed website.
+
 ## Local preview
 
 Install the repository dependencies at the repository root:
