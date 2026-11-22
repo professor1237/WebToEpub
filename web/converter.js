@@ -104,21 +104,32 @@ function renderChapterChoices(chapters) {
     chapterCount.textContent = chapters.length + (chapters.length === 1 ? " chapter found" : " chapters found");
 }
 
-async function fetchDocument(url) {
-    const response = await fetch(url, {credentials: "include", redirect: "follow"});
+async function fetchStoryPage(url) {
+    const pageUrl = new URL(url);
+    const isAo3 = ["archiveofourown.org", "www.archiveofourown.org"].includes(pageUrl.hostname);
+    if (isAo3) {
+        const response = await fetch("/api/ao3?url=" + encodeURIComponent(pageUrl.href));
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "The AO3 fetch service could not retrieve this page.");
+        return {url: result.url, html: result.html};
+    }
+
+    const response = await fetch(pageUrl.href, {credentials: "include", redirect: "follow"});
     if (!response.ok) throw new Error("The website returned HTTP " + response.status + ".");
-    const html = await response.text();
-    return new DOMParser().parseFromString(html, "text/html");
+    return {url: response.url || pageUrl.href, html: await response.text()};
+}
+
+async function fetchDocument(url) {
+    const page = await fetchStoryPage(url);
+    return new DOMParser().parseFromString(page.html, "text/html");
 }
 
 async function loadStory(url) {
-    setStatus("Checking whether this website allows browser access…");
+    setStatus("Loading your story…");
     workspace.hidden = true;
-    const response = await fetch(url.href, {credentials: "include", redirect: "follow"});
-    if (!response.ok) throw new Error("The website returned HTTP " + response.status + ".");
-    const html = await response.text();
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    const finalUrl = new URL(response.url || url.href);
+    const page = await fetchStoryPage(url.href);
+    const doc = new DOMParser().parseFromString(page.html, "text/html");
+    const finalUrl = new URL(page.url || url.href);
     activeParser = Object.values(window.WebToEpubParsers || {})
         .find(parser => parser.supports(finalUrl)) || null;
     storyMetadata = activeParser?.getMetadata(doc) || null;
@@ -233,17 +244,20 @@ async function prepareChapterImages(content, pageUrl) {
 }
 
 async function fetchChapter(chapter) {
-    const response = await fetch(chapter.url, {credentials: "include", redirect: "follow"});
-    if (!response.ok) throw new Error("Could not fetch " + chapter.title + " (HTTP " + response.status + ").");
-    const html = await response.text();
-    const doc = new DOMParser().parseFromString(html, "text/html");
+    let page;
+    try {
+        page = await fetchStoryPage(chapter.url);
+    } catch (error) {
+        throw new Error("Could not fetch " + chapter.title + ": " + error.message);
+    }
+    const doc = new DOMParser().parseFromString(page.html, "text/html");
     const base = doc.createElement("base");
-    base.href = response.url || chapter.url;
+    base.href = page.url || chapter.url;
     doc.head.prepend(base);
     const parserContent = activeParser?.getContent(doc);
     if (activeParser && !parserContent) throw new Error("The AO3 chapter content area was not found. The page layout may have changed.");
     const content = parserContent ? activeParser.cleanContent(parserContent) : findReadableContent(doc);
-    await prepareChapterImages(content, response.url || chapter.url);
+    await prepareChapterImages(content, page.url || chapter.url);
     const wrapper = document.createElement("div");
     const hasEmbeddedTitle = activeParser?.hasEmbeddedChapterTitle(doc) || false;
     if (!hasEmbeddedTitle) {
