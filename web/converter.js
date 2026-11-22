@@ -352,7 +352,11 @@ form.addEventListener("submit", async (event) => {
     try {
         await loadStory(url);
     } catch (error) {
-        setStatus(error.message + " If the browser reports a CORS error, this site cannot be converted directly by the website. The extension may still support it.", true);
+        const isAo3 = url && ["archiveofourown.org", "www.archiveofourown.org"].includes(url.hostname);
+        const hint = isAo3
+            ? " Check that the WebToEpub Node.js server is running with: node server.js"
+            : " This site may block browser access; the browser extension may still support it.";
+        setStatus(error.message + hint, true);
     }
 });
 
