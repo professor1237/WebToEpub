@@ -153,6 +153,32 @@ async function loadStory(url) {
     workspace.scrollIntoView({behavior: "smooth", block: "start"});
 }
 
+async function readLimitedImageBlob(response, limit) {
+    if (!response.body || !response.body.getReader) {
+        const blob = await response.blob();
+        if (blob.size > limit) throw new Error("Image exceeds the remaining EPUB image-size limit.");
+        return blob;
+    }
+    const reader = response.body.getReader();
+    const chunks = [];
+    let size = 0;
+    try {
+        while (true) {
+            const result = await reader.read();
+            if (result.done) break;
+            size += result.value.byteLength;
+            if (size > limit) {
+                await reader.cancel();
+                throw new Error("Image exceeds the remaining EPUB image-size limit.");
+            }
+            chunks.push(result.value);
+        }
+    } finally {
+        reader.releaseLock();
+    }
+    return new Blob(chunks, {type: response.headers.get("content-type") || ""});
+}
+
 async function prepareChapterImages(content, pageUrl) {
     for (const img of [...content.querySelectorAll("img[src]")]) {
         const rawSrc = img.getAttribute("src");
@@ -177,7 +203,8 @@ async function prepareChapterImages(content, pageUrl) {
                 if (!response.ok) throw new Error("HTTP " + response.status);
                 const declaredLength = Number(response.headers.get("content-length") || 0);
                 if (declaredLength > MAX_IMAGE_BYTES) throw new Error("Image exceeds the 20 MB per-image limit.");
-                const blob = await response.blob();
+                const remainingBytes = Math.min(MAX_IMAGE_BYTES, MAX_TOTAL_IMAGE_BYTES - totalImageBytes);
+                const blob = await readLimitedImageBlob(response, remainingBytes);
                 const mimeType = (blob.type || response.headers.get("content-type") || "").split(";")[0].toLowerCase();
                 if (!["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mimeType)) throw new Error("Unsupported image format: " + (mimeType || "unknown"));
                 if (blob.size > MAX_IMAGE_BYTES) throw new Error("Image exceeds the 20 MB per-image limit.");
@@ -287,7 +314,10 @@ async function createEpub() {
         link.className = "download-result";
         link.textContent = "Download " + link.download;
         link.addEventListener("click", () => setTimeout(() => URL.revokeObjectURL(downloadUrl), 60000), {once: true});
-        conversionStatus.replaceChildren(document.createTextNode("Your EPUB is ready. "), link);
+        const completionMessage = skippedImageCount > 0
+            ? "Your EPUB is ready. " + skippedImageCount + " image(s) could not be included."
+            : "Your EPUB is ready. ";
+        conversionStatus.replaceChildren(document.createTextNode(completionMessage), link);
         conversionStatus.classList.remove("is-error");
     } catch (error) {
         setConversionStatus(error.message + " This site may block cross-origin browser requests (CORS), require a login, or use anti-bot protection. Try the browser extension for sites that need extension permissions.", true);
