@@ -206,7 +206,8 @@ async function prepareChapterImages(content, pageUrl) {
                 const remainingBytes = Math.min(MAX_IMAGE_BYTES, MAX_TOTAL_IMAGE_BYTES - totalImageBytes);
                 const blob = await readLimitedImageBlob(response, remainingBytes);
                 const mimeType = (blob.type || response.headers.get("content-type") || "").split(";")[0].toLowerCase();
-                if (!["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mimeType)) throw new Error("Unsupported image format: " + (mimeType || "unknown"));
+                if (!["image/jpeg", "image/png", "image/gif"].includes(mimeType)) throw new Error("Unsupported image format: " + (mimeType || "unknown"));
+                if (blob.size === 0) throw new Error("The image response was empty.");
                 if (blob.size > MAX_IMAGE_BYTES) throw new Error("Image exceeds the 20 MB per-image limit.");
                 if (totalImageBytes + blob.size > MAX_TOTAL_IMAGE_BYTES) throw new Error("The EPUB image collection exceeds the 100 MB limit.");
                 imageInfo = new ImageInfo(imageUrl.href, collectedImages.length, imageUrl.href, null);
