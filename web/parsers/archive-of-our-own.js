@@ -9,7 +9,7 @@ window.WebToEpubParsers = window.WebToEpubParsers || {};
 
 class ArchiveOfOurOwnWebParser {
     static supports(url) {
-        return ["archiveofourown.org", "www.archiveofourown.org", "archiveofourown.com", "archiveofourown.net", "archiveofourown.gay", "ao3.org", "archive.transformativeworks.org", "insecure.archiveofourown.org"].includes(url.hostname);
+        return ["archiveofourown.org", "www.archiveofourown.org"].includes(url.hostname);
     }
 
     static withReaderFlags(value) {
