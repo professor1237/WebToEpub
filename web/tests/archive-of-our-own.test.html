@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>AO3 web parser regression tests</title>
+  <style>
+    body { font: 16px/1.5 system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; }
+    li.pass { color: #16733b; } li.fail { color: #b42318; }
+    pre { white-space: pre-wrap; background: #f4f4f4; padding: 1rem; }
+  </style>
+  <script src="../parsers/archive-of-our-own.js"></script>
+</head>
+<body>
+  <h1>AO3 web parser regression tests</h1>
+  <p>These tests use local HTML fixtures. They do not make requests to AO3 or verify live-site CORS.</p>
+  <p id="summary">Running…</p>
+  <ol id="results"></ol>
+  <script>
+    (async function () {
+      const Parser = window.WebToEpubParsers.archiveOfOurOwn;
+      const results = document.getElementById("results");
+      let passed = 0;
+      let failed = 0;
+
+      function assert(condition, message) {
+        if (!condition) throw new Error(message);
+      }
+      async function test(name, run) {
+        const item = document.createElement("li");
+        try {
+          await run();
+          item.className = "pass";
+          item.textContent = "PASS — " + name;
+          passed++;
+        } catch (error) {
+          item.className = "fail";
+          item.textContent = "FAIL — " + name + ": " + error.message;
+          failed++;
+        }
+        results.appendChild(item);
+      }
+      function parse(markup, url) {
+        const doc = new DOMParser().parseFromString(markup, "text/html");
+        doc.querySelector("html").setAttribute("data-test-url", url);
+        return doc;
+      }
+
+      await test("matches official AO3 hosts only", () => {
+        assert(Parser.supports(new URL("https://archiveofourown.org/works/1")), "main AO3 host not matched");
+        assert(Parser.supports(new URL("https://www.archiveofourown.org/works/1")), "www AO3 host not matched");
+        assert(!Parser.supports(new URL("https://example.org/works/1")), "unrelated host matched");
+        assert(!Parser.supports(new URL("https://archiveofourown.org.example.com/works/1")), "lookalike host matched");
+      });
+
+      await test("sets reader flags without discarding other query values", () => {
+        const result = new URL(Parser.withReaderFlags("https://archiveofourown.org/works/12?view_full_work=true&foo=bar"));
+        assert(result.searchParams.get("view_adult") === "true", "adult reader flag missing");
+        assert(result.searchParams.get("view_full_work") === "false", "full-work flag was not disabled");
+        assert(result.searchParams.get("foo") === "bar", "unrelated query parameter lost");
+      });
+
+      await test("extracts story metadata", () => {
+        const doc = parse('<html lang="en"><head><meta name="language" content="en"></head><body><h2 class="heading">The Test Story</h2><a rel="author">A. Writer</a><div class="summary"><blockquote>A short summary.</blockquote></div><dl class="meta"><dd class="tags"><a>Fantasy</a><a>Adventure</a></dd></dl></body></html>', "https://archiveofourown.org/works/12");
+        const meta = Parser.getMetadata(doc);
+        assert(meta.title === "The Test Story", "wrong title");
+        assert(meta.author === "A. Writer", "wrong author");
+        assert(meta.description === "A short summary.", "wrong summary");
+        assert(meta.subject.includes("Fantasy") && meta.subject.includes("Adventure"), "tags missing");
+      });
+
+      await test("keeps an embedded chapter title without adding a duplicate", () => {
+        const doc = parse('<html><body><div id="chapters"><h3 class="title">Chapter One</h3><p>Story text</p></div></body></html>', "https://archiveofourown.org/works/12/chapters/34");
+        assert(Parser.hasEmbeddedChapterTitle(doc), "embedded chapter title was not detected");
+        assert(Parser.getChapterTitle(doc, "fallback") === "Chapter One", "embedded chapter title mismatch");
+      });
+
+      await test("handles a single-chapter work", async () => {
+        const doc = parse('<html><head><title>One-shot</title></head><body><h2 class="heading">One-shot</h2><div id="chapters"><div class="userstuff">Text</div></div></body></html>', "https://archiveofourown.org/works/12");
+        const chapters = await Parser.getChapterUrls(doc, "https://archiveofourown.org/works/12", async () => { throw new Error("unexpected navigation fetch"); });
+        assert(chapters.length === 1, "expected one chapter");
+        assert(chapters[0].url.includes("view_adult=true"), "reader flag missing");
+      });
+
+      await test("discovers chapters from the work navigation page", async () => {
+        const doc = parse('<html><body><li class="chapter"><h3 class="title">Chapter 1</h3></li></body></html>', "https://archiveofourown.org/works/12/chapters/34");
+        const chapters = await Parser.getChapterUrls(doc, "https://archiveofourown.org/works/12/chapters/34", async url => {
+          assert(url === "https://archiveofourown.org/works/12/navigate", "wrong navigation URL: " + url);
+          return parse('<html><body><ol class="chapter"><li><a href="/works/12/chapters/34">1. First</a></li><li><a href="/works/12/chapters/35">2. Second</a></li><li><a href="/works/12/chapters/35">2. Second duplicate</a></li></ol></body></html>', url);
+        });
+        assert(chapters.length === 2, "expected two unique chapters");
+        assert(chapters[0].title === "1. First", "first chapter title mismatch");
+        assert(chapters[1].url.includes("/chapters/35"), "second chapter URL mismatch");
+      });
+
+      await test("discovers works in a series in reading order", async () => {
+        const doc = parse('<html><body><ul class="series work"><li><h4 class="heading"><a href="/works/20">One-shot</a></h4></li><li><dl><dd class="chapters"><a href="/works/21/chapters/50">2/2</a></dd></dl></li></ul></body></html>', "https://archiveofourown.org/series/9");
+        const chapters = await Parser.getChapterUrls(doc, "https://archiveofourown.org/series/9", async url => {
+          assert(url === "https://archiveofourown.org/works/21/navigate", "wrong series work navigation URL");
+          return parse('<html><body><ol class="chapter"><li><a href="/works/21/chapters/50">Part 1</a></li><li><a href="/works/21/chapters/51">Part 2</a></li></ol></body></html>', url);
+        });
+        assert(chapters.length === 3, "expected one single chapter and two multi-chapter entries");
+        assert(chapters[0].url.includes("/works/20"), "single chapter work order incorrect");
+        assert(chapters[1].url.includes("/chapters/50"), "first multi-chapter entry incorrect");
+        assert(chapters[2].url.includes("/chapters/51"), "second multi-chapter entry incorrect");
+      });
+
+      await test("selects story content and removes AO3 navigation decoration", () => {
+        const doc = parse('<html><body><div id="chapters"><h3 class="landmark heading">Landmark</h3><div class="userstuff">Story text</div><div class="chapter"><div class="navigation">Navigation</div></div></div></body></html>', "https://archiveofourown.org/works/12/chapters/34");
+        const content = Parser.cleanContent(Parser.getContent(doc));
+        assert(content.textContent.includes("Story text"), "story text removed");
+        assert(!content.textContent.includes("Landmark"), "landmark heading retained");
+        assert(!content.textContent.includes("Navigation"), "navigation retained");
+        const titled = parse('<html><body><div id="chapters"><h3 class="title">Chapter title</h3></div></body></html>', "https://archiveofourown.org/works/12/chapters/34");
+        assert(Parser.cleanContent(Parser.getContent(titled)).textContent.includes("Chapter title"), "actual chapter title was removed");
+      });
+
+      document.getElementById("summary").textContent = passed + " passed, " + failed + " failed.";
+      document.title = (failed ? "FAIL" : "PASS") + " — AO3 parser tests";
+    })();
+  </script>
+</body>
+</html>
