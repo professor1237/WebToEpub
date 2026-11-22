@@ -217,9 +217,12 @@ async function fetchChapter(chapter) {
     const content = parserContent ? activeParser.cleanContent(parserContent) : findReadableContent(doc);
     await prepareChapterImages(content, response.url || chapter.url);
     const wrapper = document.createElement("div");
-    const heading = document.createElement("h1");
-    heading.textContent = activeParser?.getChapterTitle(doc, chapter.title) || chapter.title || doc.title || "Chapter";
-    wrapper.appendChild(heading);
+    const hasEmbeddedTitle = activeParser?.hasEmbeddedChapterTitle(doc) || false;
+    if (!hasEmbeddedTitle) {
+        const heading = document.createElement("h1");
+        heading.textContent = activeParser?.getChapterTitle(doc, chapter.title) || chapter.title || doc.title || "Chapter";
+        wrapper.appendChild(heading);
+    }
     for (const node of [...content.childNodes]) {
         const clone = util.sanitizeNode(node);
         if (clone) wrapper.appendChild(clone);
